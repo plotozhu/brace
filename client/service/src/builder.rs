@@ -1168,6 +1168,7 @@ ServiceBuilder<
 				network_status_sinks.clone(),
 				system_rpc_rx,
 				has_bootnodes,
+				config.default_announce_block,
 			), exit.clone()).map(drop)),
 			From::from("network-worker"),
 		));
