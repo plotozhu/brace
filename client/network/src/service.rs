@@ -637,6 +637,11 @@ impl<B: BlockT + 'static, S: NetworkSpecialization<B>, H: ExHashT> NetworkServic
 	pub fn num_connected(&self) -> usize {
 		self.num_connected.load(Ordering::Relaxed)
 	}
+
+	/// You must call this when a new block is imported by the client.
+	pub fn on_block_imported(&self, header: B::Header, data: Vec<u8>, is_best: bool) {
+		let _ = self.to_worker.unbounded_send(ServiceToWorkerMsg::OnBlockImported(header, data, is_best));
+	}
 }
 
 impl<B: BlockT + 'static, S: NetworkSpecialization<B>, H: ExHashT> sp_consensus::SyncOracle
@@ -712,6 +717,7 @@ enum ServiceToWorkerMsg<B: BlockT, H: ExHashT, S: NetworkSpecialization<B>> {
 		engine_id: ConsensusEngineId,
 	},
 	DisconnectPeer(PeerId),
+	OnBlockImported(B::Header, Vec<u8>, bool),
 }
 
 /// Main network worker. Must be polled in order for the network to advance.
@@ -799,6 +805,8 @@ impl<B: BlockT + 'static, S: NetworkSpecialization<B>, H: ExHashT> Future for Ne
 				},
 				ServiceToWorkerMsg::DisconnectPeer(who) =>
 					this.network_service.user_protocol_mut().disconnect_peer(&who),
+				ServiceToWorkerMsg::OnBlockImported(header, data, is_best) =>
+					this.network_service.user_protocol_mut().on_block_imported(&header, data, is_best),
 			}
 		}
 
