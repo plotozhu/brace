@@ -57,7 +57,7 @@ impl<T> ExHashT for T where
 	T: std::hash::Hash + Eq + std::fmt::Debug + Clone + Send + Sync + 'static
 {}
 
-/// Transaction pool interface
+/// Transaction pool interface, 与原始的交易池相比，添加了导入和导出功能
 pub trait TransactionPool<H: ExHashT, B: BlockT>: Send + Sync {
 	/// Get transactions from the pool that are ready to be propagated.
 	fn transactions(&self) -> Vec<(H, B::Extrinsic)>;
@@ -153,6 +153,32 @@ pub struct NetworkService<B: BlockT + 'static, H: ExHashT> {
 	_marker: PhantomData<H>,
 }
 
+/// Main network worker. Must be polled in order for the network to advance.
+///
+/// You are encouraged to poll this in a separate background thread or task.
+#[must_use = "The NetworkWorker must be polled in order for the network to work"]
+pub struct NetworkWorker<B: BlockT + 'static, H: ExHashT> {
+	/// Updated by the `NetworkWorker` and loaded by the `NetworkService`.
+	external_addresses: Arc<Mutex<Vec<Multiaddr>>>,
+	/// Updated by the `NetworkWorker` and loaded by the `NetworkService`.
+	num_connected: Arc<AtomicUsize>,
+	/// Updated by the `NetworkWorker` and loaded by the `NetworkService`.
+	is_major_syncing: Arc<AtomicBool>,
+	/// The network service that can be extracted and shared through the codebase.
+	service: Arc<NetworkService<B, H>>,
+	/// The *actual* network.
+	network_service: Swarm<B, H>,
+	/// The import queue that was passed as initialization.
+	import_queue: Box<dyn ImportQueue<B>>,
+	/// Messages from the `NetworkService` and that must be processed.
+	from_worker: mpsc::UnboundedReceiver<ServiceToWorkerMsg<B, H>>,
+	/// Receiver for queries from the light client that must be processed.
+	light_client_rqs: Option<mpsc::UnboundedReceiver<RequestData<B>>>,
+	/// Senders for events that happen on the network.
+	event_streams: Vec<mpsc::UnboundedSender<Event>>,
+	/// Prometheus network metrics.
+	metrics: Option<Metrics>,
+}
 impl<B: BlockT + 'static, H: ExHashT> NetworkWorker<B, H> {
 	/// Creates the network service.
 	///
@@ -741,32 +767,7 @@ enum ServiceToWorkerMsg<B: BlockT, H: ExHashT> {
 	DisconnectPeer(PeerId),
 }
 
-/// Main network worker. Must be polled in order for the network to advance.
-///
-/// You are encouraged to poll this in a separate background thread or task.
-#[must_use = "The NetworkWorker must be polled in order for the network to work"]
-pub struct NetworkWorker<B: BlockT + 'static, H: ExHashT> {
-	/// Updated by the `NetworkWorker` and loaded by the `NetworkService`.
-	external_addresses: Arc<Mutex<Vec<Multiaddr>>>,
-	/// Updated by the `NetworkWorker` and loaded by the `NetworkService`.
-	num_connected: Arc<AtomicUsize>,
-	/// Updated by the `NetworkWorker` and loaded by the `NetworkService`.
-	is_major_syncing: Arc<AtomicBool>,
-	/// The network service that can be extracted and shared through the codebase.
-	service: Arc<NetworkService<B, H>>,
-	/// The *actual* network.
-	network_service: Swarm<B, H>,
-	/// The import queue that was passed as initialization.
-	import_queue: Box<dyn ImportQueue<B>>,
-	/// Messages from the `NetworkService` and that must be processed.
-	from_worker: mpsc::UnboundedReceiver<ServiceToWorkerMsg<B, H>>,
-	/// Receiver for queries from the light client that must be processed.
-	light_client_rqs: Option<mpsc::UnboundedReceiver<RequestData<B>>>,
-	/// Senders for events that happen on the network.
-	event_streams: Vec<mpsc::UnboundedSender<Event>>,
-	/// Prometheus network metrics.
-	metrics: Option<Metrics>,
-}
+
 
 struct Metrics {
 	// This list is ordered alphabetically
