@@ -833,16 +833,21 @@ ServiceBuilder<
 			background_tasks,
 		} = self;
 
+		//创建会话key
 		sp_session::generate_initial_session_keys(
 			client.clone(),
 			&BlockId::Hash(client.chain_info().best_hash),
 			config.dev_key_seed.clone().map(|s| vec![s]).unwrap_or_default(),
 		)?;
 
+		//创建线程通信通道
 		// A side-channel for essential tasks to communicate shutdown.
 		let (essential_failed_tx, essential_failed_rx) = mpsc::unbounded();
 
+		//创建import_queue的实例指针，
 		let import_queue = Box::new(import_queue);
+
+		//输出当前chain的信息
 		let chain_info = client.chain_info();
 		let chain_spec = config.expect_chain_spec();
 
@@ -855,6 +860,7 @@ ServiceBuilder<
 			"best" => ?chain_info.best_hash
 		);
 
+		//TODO 需要研究execution_extensions
 		// make transaction pool available for off-chain runtime calls.
 		client.execution_extensions()
 			.register_transaction_pool(Arc::downgrade(&transaction_pool) as _);
@@ -879,34 +885,39 @@ ServiceBuilder<
 			sc_network::config::ProtocolId::from(protocol_id_full)
 		};
 
+		//区块的验证器,这里使用的是默认的
 		let block_announce_validator =
 			Box::new(sp_consensus::block_validation::DefaultBlockAnnounceValidator::new(client.clone()));
 
+		//配置网络参数
 		let network_params = sc_network::config::Params {
-			roles: config.roles,
-			executor: {
+			roles: config.roles,  //角色
+			executor: {	//执行器？libp2p网络执行
 				let spawn_handle = tasks_builder.spawn_handle();
 				Some(Box::new(move |fut| {
 					spawn_handle.spawn("libp2p-node", fut);
 				}))
 			},
-			network_config: config.network.clone(),
-			chain: client.clone(),
-			finality_proof_provider,
-			finality_proof_request_builder,
-			on_demand: on_demand.clone(),
-			transaction_pool: transaction_pool_adapter.clone() as _,
-			import_queue,
-			protocol_id,
-			block_announce_validator,
-			metrics_registry: config.prometheus_config.as_ref().map(|config| config.registry.clone())
+			network_config: config.network.clone(), //网络配置
+			chain: client.clone(),		//	链
+			finality_proof_provider,		//最终确定化事件接收者
+			finality_proof_request_builder, //最终确定化的事件生成者
+			on_demand: on_demand.clone(),  //似乎是区块读取器
+			transaction_pool: transaction_pool_adapter.clone() as _, //交易池，这里支持import和广播发布
+			import_queue,		//区块导入算法实例
+			protocol_id,		//链的协议ID号
+			block_announce_validator, //收到新区块时的验证器实例
+			metrics_registry: config.prometheus_config.as_ref().map(|config| config.registry.clone()) //用于查看的各种信息记录工具
 		};
 
 		let has_bootnodes = !network_params.network_config.boot_nodes.is_empty();
+		//利用网络参数来创建一个网络
 		let network_mut = sc_network::NetworkWorker::new(network_params)?;
 		let network = network_mut.service().clone();
+		//跟踪网络情况
 		let network_status_sinks = Arc::new(Mutex::new(status_sinks::StatusSinks::new()));
 
+		//离线工作的存储器和工作线程
 		let offchain_storage = backend.offchain_storage();
 		let offchain_workers = match (config.offchain_worker, offchain_storage.clone()) {
 			(true, Some(db)) => {
@@ -919,14 +930,17 @@ ServiceBuilder<
 			_ => None,
 		};
 
+
 		let spawn_handle = tasks_builder.spawn_handle();
 
+		//启动backgroud-tasks里的任务，默认就是一个tx-pool
 		// Spawn background tasks which were stacked during the
 		// service building.
 		for (title, background_task) in background_tasks {
 			spawn_handle.spawn(title, background_task);
 		}
 
+		//这一段是为了产生事件通知，实际的过程是创建事件通知流程
 		{
 			// block notifications
 			let txpool = Arc::downgrade(&transaction_pool);
@@ -935,6 +949,7 @@ ServiceBuilder<
 			let network_state_info: Arc<dyn NetworkStateInfo + Send + Sync> = network.clone();
 			let is_validator = config.roles.is_authority();
 
+			//两个事件，import时候的新区块到达事件和finilized的最终确定化的事件
 			let (import_stream, finality_stream) = (
 				client.import_notification_stream().map(|n| ChainEvent::NewBlock {
 					id: BlockId::Hash(n.hash),
@@ -946,6 +961,7 @@ ServiceBuilder<
 					hash: n.hash
 				})
 			);
+			//把这两个事件通知给了offchain 工作线程，同时提供给tx_pool对象作管理
 			let events = futures::stream::select(import_stream, finality_stream)
 				.for_each(move |event| {
 					// offchain worker is only interested in block import events
@@ -987,11 +1003,13 @@ ServiceBuilder<
 				events,
 			);
 		}
-
+		//交易消息的处理
 		{
 			// extrinsic notifications
-			let network = Arc::downgrade(&network);
+			let network = Arc::downgrade(&network); //指向区块链网络
 			let transaction_pool_ = transaction_pool.clone();
+			//生成了个线程，处理交易池里的每一个导入的消息
+			//交易先是广播到邻节点，然后返回状态,准备给telemetry
 			let events = transaction_pool.import_notification_stream()
 				.for_each(move |hash| {
 					if let Some(network) = network.upgrade() {
@@ -1128,6 +1146,7 @@ ServiceBuilder<
 			tel_task_2,
 		);
 
+		//启动rpc服务线程
 		// RPC
 		let (system_rpc_tx, system_rpc_rx) = mpsc::unbounded();
 		let gen_handler = || {
@@ -1140,8 +1159,10 @@ ServiceBuilder<
 				properties: chain_spec.properties().clone(),
 			};
 
+			//这里rpc实现中， chain和state的处理是分开的
 			let subscriptions = sc_rpc::Subscriptions::new(Arc::new(tasks_builder.spawn_handle()));
 
+			//TODO 研究，这里有点奇怪，轻节点也支持rpc访问他么
 			let (chain, state) = if let (Some(remote_backend), Some(on_demand)) =
 				(remote_backend.as_ref(), on_demand.as_ref()) {
 				// Light clients
@@ -1166,6 +1187,7 @@ ServiceBuilder<
 				(chain, state)
 			};
 
+			//认证过程
 			let author = sc_rpc::author::Author::new(
 				client.clone(),
 				transaction_pool.clone(),
@@ -1174,6 +1196,8 @@ ServiceBuilder<
 			);
 			let system = system::System::new(system_info, system_rpc_tx.clone());
 
+			//看起来RPC需要以下几个接口 StateApi, ChainApi, OffchainAPI,AuthorApi, SystemApi和一个 rpc_extensions
+			//如果没有配置offchain_storage，就不要offchain
 			match offchain_storage.clone() {
 				Some(storage) => {
 					let offchain = sc_rpc::offchain::Offchain::new(storage);
@@ -1195,21 +1219,24 @@ ServiceBuilder<
 				))
 			}
 		};
+		//启动rpc_handlers并且对外暴露
 		let rpc_handlers = gen_handler();
 		let rpc = start_rpc_servers(&config, gen_handler)?;
 
+		//到这里才是正式启动了network-worker的线程
 		spawn_handle.spawn(
 			"network-worker",
 			build_network_future(
-				config.roles,
-				network_mut,
-				client.clone(),
-				network_status_sinks.clone(),
-				system_rpc_rx,
-				has_bootnodes,
+				config.roles,	//角色
+				network_mut,	//网络
+				client.clone(), //节点
+				network_status_sinks.clone(), //网络状态接收器
+				system_rpc_rx,  //rpc 接收
+				has_bootnodes, //是否有bootnode节点
 			),
 		);
 
+		//以下部分都是telemetry配置，然后返回了builder
 		let telemetry_connection_sinks: Arc<Mutex<Vec<futures::channel::mpsc::UnboundedSender<()>>>> = Default::default();
 
 		// Telemetry
