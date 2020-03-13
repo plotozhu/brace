@@ -1,3 +1,5 @@
+## 理解
+此片的network网络指的是区块链网络，而不仅仅是传输网络
 ## NetworkWorker::new
 1. 创建消息接收队列
 2. 读取配置
@@ -8,8 +10,49 @@
 7. 分析本机的帐号和公私钥
 8. 创建检查器？
 9. 使用Protocol::new创建新的协议
-10. 创建swarm，这个是libp2p的 swarm
+10. 创建swarm，这个是libp2p的 swarm  
+  new函数使用Params类型参数来创建，Params是如下的格式
+```rust
+pub struct Params<B: BlockT, H: ExHashT> {
+	/// 角色 (全节点, 轻节点, ...).
+	pub roles: Roles,
+	/// 这个executor是如何生成后台任务的，如果是`None`，使用默认的
+	pub executor: Option<Box<dyn Fn(Pin<Box<dyn Future<Output = ()> + Send>>) + Send>>,
+	/// 这个才是网络层的配置
+	pub network_config: NetworkConfiguration,
+	/// 处理链的客户端
+	pub chain: Arc<dyn Client<B>>,
+	///最终确定化的证明
+	///这是一个`Some()`对象，如果有，将使用他来执行最终确定化
+	pub finality_proof_provider: Option<Arc<dyn FinalityProofProvider<B>>>,
+	/// 这个是用来确认什么样的区块需要执行最终确定化.
+	////这是一个`Some()`对象，如果有，将使用他来决定是否需要最终确定化
+	pub finality_proof_request_builder: Option<BoxFinalityProofRequestBuilder<B>>,
 
+	/// `OnDemand` 对象作为一个从客户端获取区块数据的接收器
+	/// 如果是`Some`对象,网络工作器将会处理这些请求并且返回给他们，一般来说是轻节点用的
+	pub on_demand: Option<Arc<OnDemand<B>>>,
+
+	/// 交易池，网络工作器将从从对象读取交易向网络中广播
+	pub transaction_pool: Arc<dyn TransactionPool<H, B>>,
+
+	/// 在连接上使用的协议的名字，每个链都应该不是样
+	pub protocol_id: ProtocolId,
+
+	/// Import queue to use.
+	///
+	/// The import queue is the component that verifies that blocks received from other nodes are
+	/// valid.
+	pub import_queue: Box<dyn ImportQueue<B>>,
+
+	/// Type to check incoming block announcements.
+	pub block_announce_validator: Box<dyn BlockAnnounceValidator<B> + Send>,
+
+	/// Registry for recording prometheus metrics to.
+	pub metrics_registry: Option<Registry>,
+}
+
+```
 ## network::src::protocol::generic_proto::behaviour.rs
 这是通用的协议处理，以下是代码内文档的翻译  
 Network behaviour 处理与其他节点连接的自定义协议的子流

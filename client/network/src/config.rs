@@ -107,6 +107,10 @@ bitflags! {
 		const LIGHT = 0b00000010;
 		/// Act as an authority
 		const AUTHORITY = 0b00000100;
+		/// Act as voter
+		const VOTER = 0b00001000
+		/// Act as comittee
+		const COMMITTEE = 0b00010000
 	}
 }
 
@@ -124,6 +128,12 @@ impl Roles {
 	/// Does this role represents a client that does not hold full chain data locally?
 	pub fn is_light(&self) -> bool {
 		!self.is_full()
+	}
+	pub fn is_voter(&self) -> bool {
+		*self == Roles::VOTER
+	}
+	pub fn is_committee(&self) -> bool {
+		*self == Roles::COMMITTEE
 	}
 }
 
