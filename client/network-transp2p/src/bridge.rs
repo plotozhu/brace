@@ -28,12 +28,12 @@ use std::{borrow::Cow, pin::Pin, sync::Arc, task::{Context, Poll}};
 
 /// Wraps around an implementation of the `Network` crate and provides gossiping capabilities on
 /// top of it.
-pub struct GossipEngine<B: BlockT> {
-	inner: Arc<Mutex<GossipEngineInner<B>>>,
+pub struct Transp2pEngine<B: BlockT> {
+	inner: Arc<Mutex<TransppEngineInner<B>>>,
 	engine_id: ConsensusEngineId,
 }
 
-struct GossipEngineInner<B: BlockT> {
+struct TransppEngineInner<B: BlockT> {
 	state_machine: ConsensusGossip<B>,
 	network: Box<dyn Network<B> + Send>,
 	periodic_maintenance_interval: futures_timer::Delay,
@@ -41,9 +41,9 @@ struct GossipEngineInner<B: BlockT> {
 	engine_id: ConsensusEngineId,
 }
 
-impl<B: BlockT> Unpin for GossipEngineInner<B> {}
+impl<B: BlockT> Unpin for TransppEngineInner<B> {}
 
-impl<B: BlockT> GossipEngine<B> {
+impl<B: BlockT> TransppEngine<B> {
 	/// Create a new instance.
 	pub fn new<N: Network<B> + Send + Clone + 'static>(
 		mut network: N,
@@ -60,7 +60,7 @@ impl<B: BlockT> GossipEngine<B> {
 		network.register_notifications_protocol(engine_id, protocol_name.into());
 		state_machine.register_validator(&mut network, engine_id, validator);
 
-		let inner = Arc::new(Mutex::new(GossipEngineInner {
+		let inner = Arc::new(Mutex::new(TransppEngineInner {
 			state_machine,
 			network: Box::new(network),
 			periodic_maintenance_interval: futures_timer::Delay::new(PERIODIC_MAINTENANCE_INTERVAL),
@@ -68,7 +68,7 @@ impl<B: BlockT> GossipEngine<B> {
 			engine_id,
 		}));
 
-		let gossip_engine = GossipEngine {
+		let gossip_engine = TransppEngine {
 			inner: inner.clone(),
 			engine_id,
 		};
@@ -164,7 +164,7 @@ impl<B: BlockT> GossipEngine<B> {
 	}
 }
 
-impl<B: BlockT> Future for GossipEngine<B> {
+impl<B: BlockT> Future for TransppEngine<B> {
 	type Output = ();
 
 	fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
@@ -172,7 +172,7 @@ impl<B: BlockT> Future for GossipEngine<B> {
 	}
 }
 
-impl<B: BlockT> Future for GossipEngineInner<B> {
+impl<B: BlockT> Future for TransppEngineInner<B> {
 	type Output = ();
 
 	fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
@@ -217,9 +217,9 @@ impl<B: BlockT> Future for GossipEngineInner<B> {
 	}
 }
 
-impl<B: BlockT> Clone for GossipEngine<B> {
+impl<B: BlockT> Clone for TransppEngine<B> {
 	fn clone(&self) -> Self {
-		GossipEngine {
+		TransppEngine {
 			inner: self.inner.clone(),
 			engine_id: self.engine_id.clone(),
 		}
