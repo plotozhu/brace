@@ -101,40 +101,7 @@ const MAX_BLOCK_DATA_RESPONSE: u32 = 128;
 /// and disconnect to free connection slot.
 const LIGHT_MAXIMAL_BLOCKS_DIFFERENCE: u64 = 8192;
 
-mod rep {
-	use sc_peerset::ReputationChange as Rep;
-	/// Reputation change when a peer is "clogged", meaning that it's not fast enough to process our
-	/// messages.
-	pub const CLOGGED_PEER: Rep = Rep::new(-(1 << 12), "Clogged message queue");
-	/// Reputation change when a peer doesn't respond in time to our messages.
-	pub const TIMEOUT: Rep = Rep::new(-(1 << 10), "Request timeout");
-	/// Reputation change when a peer sends us a status message while we already received one.
-	pub const UNEXPECTED_STATUS: Rep = Rep::new(-(1 << 20), "Unexpected status message");
-	/// Reputation change when we are a light client and a peer is behind us.
-	pub const PEER_BEHIND_US_LIGHT: Rep = Rep::new(-(1 << 8), "Useless for a light peer");
-	/// Reputation change when a peer sends us an extrinsic that we didn't know about.
-	pub const GOOD_EXTRINSIC: Rep = Rep::new(1 << 7, "Good extrinsic");
-	/// Reputation change when a peer sends us a bad extrinsic.
-	pub const BAD_EXTRINSIC: Rep = Rep::new(-(1 << 12), "Bad extrinsic");
-	/// We sent an RPC query to the given node, but it failed.
-	pub const RPC_FAILED: Rep = Rep::new(-(1 << 12), "Remote call failed");
-	/// We received a message that failed to decode.
-	pub const BAD_MESSAGE: Rep = Rep::new(-(1 << 12), "Bad message");
-	/// We received an unexpected response.
-	pub const UNEXPECTED_RESPONSE: Rep = Rep::new_fatal("Unexpected response packet");
-	/// We received an unexpected extrinsic packet.
-	pub const UNEXPECTED_EXTRINSICS: Rep = Rep::new_fatal("Unexpected extrinsics packet");
-	/// We received an unexpected light node request.
-	pub const UNEXPECTED_REQUEST: Rep = Rep::new_fatal("Unexpected block request packet");
-	/// Peer has different genesis.
-	pub const GENESIS_MISMATCH: Rep = Rep::new_fatal("Genesis mismatch");
-	/// Peer is on unsupported protocol version.
-	pub const BAD_PROTOCOL: Rep = Rep::new_fatal("Unsupported protocol");
-	/// Peer role does not match (e.g. light peer connecting to another light peer).
-	pub const BAD_ROLE: Rep = Rep::new_fatal("Unsupported role");
-	/// Peer response data does not have requested bits.
-	pub const BAD_RESPONSE: Rep = Rep::new(-(1 << 12), "Incomplete response");
-}
+
 
 struct Metrics {
 	handshaking_peers: Gauge<U64>,
@@ -2142,7 +2109,40 @@ impl<B: BlockT, H: ExHashT> Drop for Protocol<B, H> {
 		debug!(target: "sync", "Network stats:\n{}", self.format_stats());
 	}
 }
-
+mod rep {
+	use sc_peerset::ReputationChange as Rep;
+	/// Reputation change when a peer is "clogged", meaning that it's not fast enough to process our
+	/// messages.
+	pub const CLOGGED_PEER: Rep = Rep::new(-(1 << 12), "Clogged message queue");
+	/// Reputation change when a peer doesn't respond in time to our messages.
+	pub const TIMEOUT: Rep = Rep::new(-(1 << 10), "Request timeout");
+	/// Reputation change when a peer sends us a status message while we already received one.
+	pub const UNEXPECTED_STATUS: Rep = Rep::new(-(1 << 20), "Unexpected status message");
+	/// Reputation change when we are a light client and a peer is behind us.
+	pub const PEER_BEHIND_US_LIGHT: Rep = Rep::new(-(1 << 8), "Useless for a light peer");
+	/// Reputation change when a peer sends us an extrinsic that we didn't know about.
+	pub const GOOD_EXTRINSIC: Rep = Rep::new(1 << 7, "Good extrinsic");
+	/// Reputation change when a peer sends us a bad extrinsic.
+	pub const BAD_EXTRINSIC: Rep = Rep::new(-(1 << 12), "Bad extrinsic");
+	/// We sent an RPC query to the given node, but it failed.
+	pub const RPC_FAILED: Rep = Rep::new(-(1 << 12), "Remote call failed");
+	/// We received a message that failed to decode.
+	pub const BAD_MESSAGE: Rep = Rep::new(-(1 << 12), "Bad message");
+	/// We received an unexpected response.
+	pub const UNEXPECTED_RESPONSE: Rep = Rep::new_fatal("Unexpected response packet");
+	/// We received an unexpected extrinsic packet.
+	pub const UNEXPECTED_EXTRINSICS: Rep = Rep::new_fatal("Unexpected extrinsics packet");
+	/// We received an unexpected light node request.
+	pub const UNEXPECTED_REQUEST: Rep = Rep::new_fatal("Unexpected block request packet");
+	/// Peer has different genesis.
+	pub const GENESIS_MISMATCH: Rep = Rep::new_fatal("Genesis mismatch");
+	/// Peer is on unsupported protocol version.
+	pub const BAD_PROTOCOL: Rep = Rep::new_fatal("Unsupported protocol");
+	/// Peer role does not match (e.g. light peer connecting to another light peer).
+	pub const BAD_ROLE: Rep = Rep::new_fatal("Unsupported role");
+	/// Peer response data does not have requested bits.
+	pub const BAD_RESPONSE: Rep = Rep::new(-(1 << 12), "Incomplete response");
+}
 #[cfg(test)]
 mod tests {
 	use crate::PeerId;
