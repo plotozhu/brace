@@ -26,6 +26,20 @@ use parking_lot::Mutex;
 use sp_runtime::{traits::Block as BlockT, ConsensusEngineId};
 use std::{borrow::Cow, pin::Pin, sync::Arc, task::{Context, Poll}};
 
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+struct MessageEntry{
+	handle Vec<u8>,
+	data   Vec<u8>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+pub enum PPMsg {
+	PushHash(Vec<u8>),
+	PullData(Vec<u8>),
+	//data format handle+ data
+	PushData(MessageEntry),
+}
+
 /// Wraps around an implementation of the `Network` crate and provides gossiping capabilities on
 /// top of it.
 pub struct Transp2pEngine<B: BlockT> {
@@ -34,9 +48,9 @@ pub struct Transp2pEngine<B: BlockT> {
 }
 
 struct TransppEngineInner<B: BlockT> {
-	state_machine: ConsensusGossip<B>,
+	
 	network: Box<dyn Network<B> + Send>,
-	periodic_maintenance_interval: futures_timer::Delay,
+	known_hashes: LruCache<B::Hash, ()>,
 	network_event_stream: Pin<Box<dyn Stream<Item = Event> + Send>>,
 	engine_id: ConsensusEngineId,
 }
@@ -49,7 +63,6 @@ impl<B: BlockT> TransppEngine<B> {
 		mut network: N,
 		engine_id: ConsensusEngineId,
 		protocol_name: impl Into<Cow<'static, [u8]>>,
-		validator: Arc<dyn Validator<B>>,
 	) -> Self where B: 'static {
 		let mut state_machine = ConsensusGossip::new();
 
@@ -57,26 +70,27 @@ impl<B: BlockT> TransppEngine<B> {
 		// might miss events.
 		let network_event_stream = network.event_stream();
 
+		//把这个注入到NetworkBehaviour里
 		network.register_notifications_protocol(engine_id, protocol_name.into());
 		state_machine.register_validator(&mut network, engine_id, validator);
 
 		let inner = Arc::new(Mutex::new(TransppEngineInner {
-			state_machine,
+			
 			network: Box::new(network),
-			periodic_maintenance_interval: futures_timer::Delay::new(PERIODIC_MAINTENANCE_INTERVAL),
+			known_hashes:LruCache::new(KNOWN_MESSAGES_CACHE_SIZE),
 			network_event_stream,
 			engine_id,
 		}));
 
-		let gossip_engine = TransppEngine {
+		let trans_engine = TransppEngine {
 			inner: inner.clone(),
 			engine_id,
 		};
 
-		gossip_engine
+		trans_engine
 	}
 
-	pub fn report(&self, who: PeerId, reputation: ReputationChange) {
+	pub fn (&self, who: PeerId, reputation: ReputationChange) {
 		self.inner.lock().network.report_peer(who, reputation);
 	}
 

@@ -113,3 +113,17 @@ Network behaviour 处理与其他节点连接的自定义协议的子流
 ## 对象`GenericProto`
 `GenericProto::new`需要三个参数，协议名称，协议版本和PSM
 `GenericProto::register_notif_protocol`可以用来注册协议的通知，就是向`notif_protocol`数组里添加了(proto_name,engine和handshake_msg)的三元组
+
+
+
+# 数据收发流程
+![](data-flow.png)
+
+需要使用notification的，使用如上的方式进行数据传输。
+
+1. 首先通过register_notificaitons_protocol把自身注册到notification处理器中
+
+
+
+
+## 如果不使用notification方式
