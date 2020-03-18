@@ -6286,6 +6286,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sc-network-transpp"
+version = "0.8.0-alpha.3"
+dependencies = [
+ "futures 0.3.4",
+ "futures-timer 3.0.2",
+ "libp2p",
+ "log 0.4.8",
+ "lru",
+ "parity-scale-codec",
+ "sc-network",
+ "sp-runtime",
+ "wasm-timer",
+]
+
+[[package]]
 name = "sc-offchain"
 version = "2.0.0-alpha.3"
 dependencies = [

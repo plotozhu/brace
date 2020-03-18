@@ -1,13 +1,13 @@
 [package]
 description = "Gossiping for the Substrate network protocol"
-name = "sc-network-gossip"
+name = "sc-network-transpp"
 version = "0.8.0-alpha.3"
 license = "GPL-3.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 homepage = "https://substrate.dev"
 repository = "https://github.com/paritytech/substrate/"
-documentation = "https://docs.rs/sc-network-transpp"
+documentation = "https://docs.rs/sc-network-gossip"
 
 
 [dependencies]
@@ -19,3 +19,4 @@ lru = "0.4.3"
 sc-network = { version = "0.8.0-alpha.2", path = "../network" }
 sp-runtime = { version = "2.0.0-alpha.2", path = "../../primitives/runtime" }
 wasm-timer = "0.2"
+codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive"] }
