@@ -127,31 +127,31 @@ fn propagate<'a, B: BlockT, I>(
 }
 
 /// Consensus network protocol handler. Manages statements and candidate requests.
-pub struct TransPP<B: BlockT> {
-	//peers: HashMap<PeerId, PeerConsensus<B::Hash>>,
+pub struct TransPPEngine<B: BlockT> {
+	// peers supporting push/pull protocol
+	peers: HashMap<PeerId, PeerConsensus<B::Hash>>,
 	live_message_sinks: HashMap<(ConsensusEngineId, B::Hash), Vec<mpsc::UnboundedSender<TopicNotification>>>,
+	// messages those hash has been sent
 	pending_messages: LruCache<B::Hash,MessageEntry<B>>,
-	known_messages: LruCache<B::Hash, ()>,
-///	validators: HashMap<ConsensusEngineId, Arc<dyn Validator<B>>>,
-///	next_broadcast: Instant,
+	// record recently received hashes
+	received_messages: LruCache<B::Hash, ()>,
 }
 
-impl<B: BlockT> ConsensusGossip<B> {
+impl<B: BlockT> TransPP<B> {
 	/// Create a new instance.
 	pub fn new() -> Self {
-		ConsensusGossip {
+		TransPPEngine {
 			peers: HashMap::new(),
 			live_message_sinks: HashMap::new(),
 			pending_messages:  LruCache::new(MAX_PENDING_DATA),
-			known_messages: LruCache::new(KNOWN_MESSAGES_CACHE_SIZE),
-//			validators: Default::default(),
-///			next_broadcast: Instant::now() + REBROADCAST_INTERVAL,
+			received_hashes: LruCache::new(KNOWN_MESSAGES_CACHE_SIZE),
+
 		}
 	}
 
 	
 
-	/// Handle new connected peer.
+	/// record peers supporting push/pull protocol
 	pub fn new_peer(&mut self, network: &mut dyn Network<B>, who: PeerId, roles: Roles) {
 		// light nodes are not valid targets for consensus gossip messages
 
@@ -162,6 +162,14 @@ impl<B: BlockT> ConsensusGossip<B> {
 		});
 
 	}
+		/// Call when a peer has been disconnected to stop tracking gossip status.
+		pub fn peer_disconnected(&mut self, network: &mut dyn Network<B>, who: PeerId) {
+			// for (engine_id, v) in self.validators.clone() {
+			// 	let mut context = NetworkContext { gossip: self, network, engine_id: engine_id.clone() };
+			// 	v.peer_disconnected(&mut context, &who);
+			// }
+			self.peers.remove(&who);
+		}
 
 	fn register_message_hashed(
 		&mut self,
@@ -194,30 +202,18 @@ impl<B: BlockT> ConsensusGossip<B> {
 		self.register_message_hashed(message_hash, topic, message, None);
 	}
 
-	/// Call when a peer has been disconnected to stop tracking gossip status.
-	pub fn peer_disconnected(&mut self, network: &mut dyn Network<B>, who: PeerId) {
-		for (engine_id, v) in self.validators.clone() {
-			let mut context = NetworkContext { gossip: self, network, engine_id: engine_id.clone() };
-			v.peer_disconnected(&mut context, &who);
-		}
-		self.peers.remove(&who);
-	}
+
 
 	/// Perform periodic maintenance
 	pub fn tick(&mut self, network: &mut dyn Network<B>) {
 		self.collect_garbage();
-		if Instant::now() >= self.next_broadcast {
-			self.rebroadcast(network);
-			self.next_broadcast = Instant::now() + REBROADCAST_INTERVAL;
-		}
+		// if Instant::now() >= self.next_broadcast {
+		// 	self.rebroadcast(network);
+		// 	self.next_broadcast = Instant::now() + REBROADCAST_INTERVAL;
+		// }
 	}
 
-	/// Rebroadcast all messages to all peers.
-	fn rebroadcast(&mut self, network: &mut dyn Network<B>) {
-		let messages = self.messages.iter()
-			.map(|entry| (&entry.message_hash, &entry.topic, &entry.message));
-		propagate(network, messages, MessageIntent::PeriodicRebroadcast, &mut self.peers, &self.validators);
-	}
+
 
 	/// Broadcast all messages with given topic.
 	pub fn broadcast_topic(&mut self, network: &mut dyn Network<B>, topic: B::Hash, force: bool) {
