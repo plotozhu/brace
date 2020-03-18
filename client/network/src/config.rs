@@ -109,9 +109,9 @@ bitflags! {
 		/// Act as an authority
 		const AUTHORITY = 0b00000100;
 		/// Act as voter
-		const VOTER = 0b00001000
+		const VOTER = 0b00001000;
 		/// Act as comittee
-		const COMMITTEE = 0b00010000
+		const COMMITTEE = 0b00010000;
 	}
 }
 

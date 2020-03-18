@@ -15,8 +15,9 @@
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{Network, Validator};
-use crate::state_machine::{TransPPEngine, TopicNotification, PERIODIC_MAINTENANCE_INTERVAL,MessageWithTopic};
+use crate::state_machine::{TransPPEngine, TopicNotification, PERIODIC_MAINTENANCE_INTERVAL,MessageWithTopic,PPMsg,PPHandleID};
 
+use codec::{Encode, Decode};
 
 use sc_network::{Event, ReputationChange};
 
@@ -121,13 +122,14 @@ impl<B: BlockT> Future for GossipEngine<B> {
 						&mut *this.network,
 						remote,
 						messages.into_iter()
-							.filter_map(|(handle, data)| 
-								match handle {
-									Some(PPMsg::PushHash(hash)) => PPMsg::PushHash(data),
-									Some(PPMsg::PullData(hash)) => PPMsg::PullData(data),
-									Some(PPMsg::PushData(hash,data)) => PPMsg::PushData(hash,data)
-								}
-								Some(MessageWithTopic { topic: topic.to_vec(), message: data.to_vec() })
+							.filter_map(|(handle, data)| {
+								let pp_handle = handle[0] as PPHandleID;
+								/*match pp_handle {
+									PUSH_HASH  => Decode::decode<PPMsg::PushHash>(&mut data),
+									PULL_DATA => Decode::decode(&mut data),
+									PUSH_DATA => Decode::decode(&mut data),
+								}*/
+							}
 							)
 							.collect()
 					);
