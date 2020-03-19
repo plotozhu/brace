@@ -26,7 +26,7 @@ use sp_runtime::traits::{Block as BlockT, Hash, HashFor};
 pub use sc_network::message::generic::{Message, ConsensusMessage};
 use sc_network::config::Roles;
 use wasm_timer::Instant;
-use codec::{Encode, Decode};
+use codec::{Encode, Decode,Input,Output};
 use sp_runtime::{ConsensusEngineId};
 // FIXME: Add additional spam/DoS attack protection: https://github.com/paritytech/substrate/issues/1115
 const KNOWN_MESSAGES_CACHE_SIZE: usize = 40960;
@@ -44,22 +44,29 @@ struct PeerConsensus<H> {
 }
 #[derive(Debug, Eq, PartialEq,Clone,Encode,Decode)]
 pub struct MessageWithTopic {
-	topic:Vec<u8>,
-	message:Vec<u8>
+	pub topic:Vec<u8>,
+	pub  message:Vec<u8>
+}
+#[derive(Debug, Eq, PartialEq,Clone,Encode,Decode)]
+pub struct MessageWithHash<B:BlockT> {
+	pub hash : B::Hash,
+	pub msg :	MessageWithTopic,
 }
 
-#[derive(Debug, Eq, PartialEq,Clone,Decode,Encode)]
+#[derive(Debug, Eq, PartialEq,Clone,Encode)]
 pub enum PPMsg<B:BlockT>{
 	PushHash(B::Hash),
 	PullData(B::Hash),
 	PushData(B::Hash, MessageWithTopic),
 }
 
+
+
 pub type PPHandleID =  u8;
 
-const PUSH_HASH:PPHandleID = 0x01;
-const PULL_DATA:PPHandleID = 0x02;
-const PUSH_DATA:PPHandleID = 0x03;
+pub const PUSH_HASH:PPHandleID = 0x01;
+pub const PULL_DATA:PPHandleID = 0x02;
+pub const PUSH_DATA:PPHandleID = 0x03;
 
 /// Topic stream message with sender.
 #[derive(Debug, Eq, PartialEq)]
@@ -118,7 +125,7 @@ impl<B: BlockT> TransPPEngine<B> {
 
 	 pub fn send_message(&mut self,network:&mut dyn Network<B>,peers :Vec<sc_network::PeerId>,message:MessageWithTopic){
 		let msg_to_send  ;
-		let cmd = PUSH_HASH;
+		let mut cmd = PUSH_HASH;
 		if message.message.len() > MAX_DIRECT_PUSH_SIZE {
 			 let  hash = HashFor::<B>::hash_of(&message);
 			 self.pending_messages.put(hash,message);
@@ -126,7 +133,7 @@ impl<B: BlockT> TransPPEngine<B> {
 		 }else {
 			let  hash = HashFor::<B>::hash_of(&message);
 			 msg_to_send = PPMsg::PushData(hash,message);
-			 cmd = PUSH_DATA
+			 cmd = PUSH_DATA;
 		 }
 		 for peer in peers {
 			 //check if this peer is in our 
@@ -148,7 +155,8 @@ impl<B: BlockT> TransPPEngine<B> {
 	 fn respone_pull_data(&mut self,network:&mut dyn Network<B>,incoming_peer:sc_network::PeerId,hash: B::Hash){
 		match self.pending_messages.get(& hash) {
 			Some(msgWithTopic) =>{
-				self.do_send_message(network,incoming_peer,PUSH_DATA,PPMsg::PushData(hash,*msgWithTopic))
+				let result = msgWithTopic.clone();
+				self.do_send_message(network,incoming_peer,PUSH_DATA,PPMsg::PushData(hash,result))
 			},
 			_ => return,
 		} 
@@ -182,7 +190,7 @@ impl<B: BlockT> TransPPEngine<B> {
 		rx
 	}
 
-	fn streamout(&mut self,who:PeerId, topic:Vec<u8>, message:Vec<u8>){
+	fn streamout(&mut self,who:sc_network::PeerId, topic:Vec<u8>, message:Vec<u8>){
 
 		if let Entry::Occupied(mut entry) = self.live_message_sinks.entry(topic) {
 			//这个entry是Vec类型的
@@ -209,7 +217,7 @@ impl<B: BlockT> TransPPEngine<B> {
 	pub fn on_incoming(
 		&mut self,
 		network: &mut dyn Network<B>,
-		who: PeerId,
+		who: sc_network::PeerId,
 		messages: Vec<PPMsg<B>>,
 	) {
 		if !messages.is_empty() {
@@ -218,9 +226,10 @@ impl<B: BlockT> TransPPEngine<B> {
 
 		for message in messages {
 			match Some(message) {
-				Some(PPMsg::PushHash(data)) => self.response_push_hash(network,who,data),
-				Some( PPMsg::PushData(topic,data)) =>self.streamout(who,data.topic,data.message),
-				Some(PPMsg::PullData(data)) => self.respone_pull_data(network,who,data),
+				Some(PPMsg::PushHash(data)) => self.response_push_hash(network,who.clone(),data),
+				Some( PPMsg::PushData(topic,data)) =>self.streamout(who.clone(),data.topic,data.message),
+				Some(PPMsg::PullData(data)) => self.respone_pull_data(network,who.clone(),data),
+				None =>{},
 			}
 			
 		}

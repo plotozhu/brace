@@ -15,7 +15,7 @@
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{Network, Validator};
-use crate::state_machine::{TransPPEngine, TopicNotification, PERIODIC_MAINTENANCE_INTERVAL,MessageWithTopic,PPMsg,PPHandleID};
+use crate::state_machine::{TransPPEngine, TopicNotification, PERIODIC_MAINTENANCE_INTERVAL,MessageWithTopic,PPMsg,PPHandleID,MessageWithHash};
 
 use codec::{Encode, Decode};
 
@@ -117,18 +117,31 @@ impl<B: BlockT> Future for GossipEngine<B> {
 					this.state_machine.peer_disconnected(&mut *this.network, remote);
 				},
 				Event::NotificationsReceived { remote, messages } => {
-					let engine_id = this.engine_id.clone();
 					this.state_machine.on_incoming(
 						&mut *this.network,
 						remote,
 						messages.into_iter()
 							.filter_map(|(handle, data)| {
 								let pp_handle = handle[0] as PPHandleID;
-								/*match pp_handle {
-									PUSH_HASH  => Decode::decode<PPMsg::PushHash>(&mut data),
-									PULL_DATA => Decode::decode(&mut data),
-									PUSH_DATA => Decode::decode(&mut data),
-								}*/
+								match pp_handle {
+									PUSH_HASH =>{
+										let hash = B::Hash::decode(&mut &data[..]).unwrap();
+										let msg = PPMsg::PushHash(hash);
+										Some(msg)
+										
+									},
+									PULLL_DATA=>{
+										let hash = B::Hash::decode(&mut &data[..]).unwrap();
+										let msg = PPMsg::PullData(hash);
+										Some(msg)
+									},
+									PUSH_DATA=>{
+										
+										let msg = MessageWithHash::<B>::decode(&mut &data[..]).unwrap();
+								
+										Some(PPMsg::PushData(msg.hash,msg.msg.clone()))
+									}
+								}
 							}
 							)
 							.collect()
