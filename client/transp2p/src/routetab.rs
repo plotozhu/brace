@@ -4,20 +4,26 @@ use std::time::{Duration, SystemTime};
 use lru::LruCache;
 
 const MaxRouteItemCount 10240
-/// item for on instance
 #[derive(Debug, Eq, PartialEq,Clone,Encode,Decode)]
-pub struct routeItem {
+pub struct routePathItem{
+    next:sc_network::PeerId,
+    path:Vec<routePath>
+}
+/// item for 
+#[derive(Debug, Eq, PartialEq,Clone,Encode,Decode)]
+pub struct routePath {
     minTtl:u8,
-    peerId:sc_network::PeerId,
-    next:Vec<routeItem>,
+    next:sc_network::PeerId,
+    path:Vec<routePath>
 }
 /// items with bls signature
+#[derive(Debug, Eq, PartialEq,Clone,Encode,Decode)]
 pub struct routeItemWithSign {
 
     //创建时间
     createTime:SystemTime,
     //下一跳列表
-    nextHops:Vec<routeItem>,
+    nextHops:Vec<routePath>,
     //总签名
     signature:Vec<u8>,
 }
