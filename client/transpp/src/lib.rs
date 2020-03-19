@@ -54,9 +54,8 @@
 //! These status packets will typically contain light pieces of information
 //! used to inform peers of a current view of protocol state.
 
-pub use self::bridge::GossipEngine;
+pub use self::bridge::TransPP;
 pub use self::state_machine::TopicNotification;
-pub use self::validator::{DiscardAll, MessageIntent, Validator, ValidatorContext, ValidationResult};
 
 use futures::prelude::*;
 use sc_network::{Event, ExHashT, NetworkService, PeerId, ReputationChange};
@@ -65,7 +64,7 @@ use std::{borrow::Cow, pin::Pin, sync::Arc};
 
 mod bridge;
 mod state_machine;
-mod validator;
+
 
 /// Abstraction over a network.
 pub trait Network<B: BlockT> {

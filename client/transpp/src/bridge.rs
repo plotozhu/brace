@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{Network, Validator};
+use crate::{Network};
 use crate::state_machine::{TransPPEngine, TopicNotification, PERIODIC_MAINTENANCE_INTERVAL,MessageWithTopic,PPMsg,PPHandleID,MessageWithHash};
 
 use codec::{Encode, Decode};
@@ -28,23 +28,21 @@ use std::{borrow::Cow, pin::Pin, sync::Arc, task::{Context, Poll}};
 
 /// Wraps around an implementation of the `Network` crate and provides gossiping capabilities on
 /// top of it.
-pub struct GossipEngine<B: BlockT> {
+pub struct TransPP<B: BlockT> {
 	state_machine: TransPPEngine<B>,
 	network: Box<dyn Network<B> + Send>,
 	periodic_maintenance_interval: futures_timer::Delay,
 	network_event_stream: Pin<Box<dyn Stream<Item = Event> + Send>>,
-	engine_id: ConsensusEngineId,
 }
 
-impl<B: BlockT> Unpin for GossipEngine<B> {}
+impl<B: BlockT> Unpin for TransPP<B> {}
 
-impl<B: BlockT> GossipEngine<B> {
+impl<B: BlockT> TransPP<B> {
 	/// Create a new instance.
 	pub fn new<N: Network<B> + Send + Clone + 'static>(
 		mut network: N,
 		engine_id: ConsensusEngineId,
 		protocol_name: impl Into<Cow<'static, [u8]>>,
-		validator: Arc<dyn Validator<B>>,
 	) -> Self where B: 'static {
 		let mut state_machine = TransPPEngine::new();
 
@@ -54,12 +52,11 @@ impl<B: BlockT> GossipEngine<B> {
 
 		network.register_notifications_protocol(engine_id, protocol_name.into());
 	
-		GossipEngine {
+		TransPP {
 			state_machine,
 			network: Box::new(network),
 			periodic_maintenance_interval: futures_timer::Delay::new(PERIODIC_MAINTENANCE_INTERVAL),
 			network_event_stream,
-			engine_id,
 		}
 	}
 
@@ -96,7 +93,7 @@ impl<B: BlockT> GossipEngine<B> {
 	}
 }
 
-impl<B: BlockT> Future for GossipEngine<B> {
+impl<B: BlockT> Future for TransPP<B> {
 	type Output = ();
 
 	fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
@@ -105,15 +102,10 @@ impl<B: BlockT> Future for GossipEngine<B> {
 		while let Poll::Ready(Some(event)) = this.network_event_stream.poll_next_unpin(cx) {
 			match event {
 				Event::NotificationStreamOpened { remote, engine_id: msg_engine_id, roles } => {
-					if msg_engine_id != this.engine_id {
-						continue;
-					}
+
 					this.state_machine.new_peer(&mut *this.network, remote, roles);
 				}
 				Event::NotificationStreamClosed { remote, engine_id: msg_engine_id } => {
-					if msg_engine_id != this.engine_id {
-						continue;
-					}
 					this.state_machine.peer_disconnected(&mut *this.network, remote);
 				},
 				Event::NotificationsReceived { remote, messages } => {
