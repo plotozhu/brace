@@ -1,13 +1,13 @@
 [package]
 description = "Gossiping for the Substrate network protocol"
-name = "sc-network-transpp"
+name = "sc-network-transp2p"
 version = "0.8.0-alpha.3"
 license = "GPL-3.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 homepage = "https://substrate.dev"
 repository = "https://github.com/paritytech/substrate/"
-documentation = "https://docs.rs/sc-network-gossip"
+documentation = "https://docs.rs/sc-network-transpp"
 
 
 [dependencies]
