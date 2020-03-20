@@ -84,6 +84,13 @@ impl<B: BlockT> TransPP<B> {
 		});
 	}
 
+	/// Notify everyone we're connected to that we have the given block.
+	///
+	/// Note: this method isn't strictly related to gossiping and should eventually be moved
+	/// somewhere else.
+	pub fn announce(&self, block: B::Hash, associated_data: Vec<u8>) {
+		self.network.announce(block, associated_data);
+	}
 }
 
 impl<B: BlockT> Future for TransPP<B> {

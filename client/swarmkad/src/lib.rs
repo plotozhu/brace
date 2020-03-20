@@ -89,7 +89,11 @@ pub trait Network<B: BlockT> {
 		protocol_name: Cow<'static, [u8]>,
 	);
 
-
+	/// Notify everyone we're connected to that we have the given block.
+	///
+	/// Note: this method isn't strictly related to gossiping and should eventually be moved
+	/// somewhere else.
+	fn announce(&self, block: B::Hash, associated_data: Vec<u8>);
 }
 
 impl<B: BlockT, H: ExHashT> Network<B> for Arc<NetworkService<B, H>> {

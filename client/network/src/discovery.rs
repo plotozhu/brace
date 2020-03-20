@@ -49,9 +49,9 @@ use futures::prelude::*;
 use futures_timer::Delay;
 use libp2p::core::{nodes::listeners::ListenerId, ConnectedPoint, Multiaddr, PeerId, PublicKey};
 use libp2p::swarm::{ProtocolsHandler, NetworkBehaviour, NetworkBehaviourAction, PollParameters};
-use libp2p::kad::{Kademlia, KademliaEvent, Quorum, Record};
-use libp2p::kad::GetClosestPeersError;
-use libp2p::kad::record::{self, store::MemoryStore};
+use libp2p_kad::{Kademlia, KademliaEvent, Quorum, Record};
+use libp2p_kadkad::GetClosestPeersError;
+use libp2p_kadkad::record::{self, store::MemoryStore};
 #[cfg(not(target_os = "unknown"))]
 use libp2p::{swarm::toggle::Toggle};
 #[cfg(not(target_os = "unknown"))]
@@ -87,6 +87,8 @@ pub struct DiscoveryBehaviour {
 	allow_private_ipv4: bool,
 	/// Number of active connections over which we interrupt the discovery process.
 	discovery_only_if_under_num: u64,
+	//饱和深度
+	saturation:u8,
 }
 
 impl DiscoveryBehaviour {
@@ -122,6 +124,7 @@ impl DiscoveryBehaviour {
 			num_connections: 0,
 			allow_private_ipv4,
 			discovery_only_if_under_num,
+			saturation:0,
 			#[cfg(not(target_os = "unknown"))]
 			mdns: if enable_mdns {
 				match Mdns::new() {
@@ -135,6 +138,9 @@ impl DiscoveryBehaviour {
 				None.into()
 			},
 		}
+	}
+	fn calc_saturation(&mut self){
+
 	}
 
 	/// Returns the list of nodes that we know exist in the network.

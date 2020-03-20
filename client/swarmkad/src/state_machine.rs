@@ -85,7 +85,6 @@ pub struct TransPPEngine<B: BlockT> {
 	peers: HashMap<PeerId, PeerConsensus<B::Hash>>,
 	
 	live_message_sinks: HashMap<Vec<u8>, Vec<mpsc::UnboundedSender<TopicNotification>>>,
-	live_peer_watcher: Vec<mpsc::UnboundedSender<TopicNotification>>,
 	// messages those hash has been sent
 	pending_messages: LruCache<B::Hash,MessageWithTopic >,
 	// record recently received hashes
@@ -190,9 +189,6 @@ impl<B: BlockT> TransPPEngine<B> {
 
 		rx
 	}
-	pub fn peer_watcher(&mut self)-> mpsc::UnboundedReceiver<TopicNotification> {
-
-	}
 
 	fn streamout(&mut self,who:sc_network::PeerId, topic:Vec<u8>, message:Vec<u8>){
 
@@ -240,5 +236,17 @@ impl<B: BlockT> TransPPEngine<B> {
 	}
 	
 
+}
+mod rep {
+	use sc_network::ReputationChange as Rep;
+	/// Reputation change when a peer sends us a gossip message that we didn't know about.
+	pub const GOSSIP_SUCCESS: Rep = Rep::new(1 << 4, "Successfull gossip");
+	/// Reputation change when a peer sends us a gossip message that we already knew about.
+	pub const DUPLICATE_GOSSIP: Rep = Rep::new(-(1 << 2), "Duplicate gossip");
+	/// Reputation change when a peer sends us a gossip message for an unknown engine, whatever that
+	/// means.
+	pub const UNKNOWN_GOSSIP: Rep = Rep::new(-(1 << 6), "Unknown gossip message engine id");
+	/// Reputation change when a peer sends a message from a topic it isn't registered on.
+	pub const UNREGISTERED_TOPIC: Rep = Rep::new(-(1 << 10), "Unregistered gossip message topic");
 }
 
