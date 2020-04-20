@@ -74,7 +74,7 @@ pub mod message;
 pub mod event;
 pub mod light_client_handler;
 pub mod sync;
-
+pub mod transp2p;
 pub use block_requests::BlockRequests;
 pub use light_client_handler::LightClientHandler;
 pub use generic_proto::LegacyConnectionKillError;
