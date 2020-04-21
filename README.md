@@ -1,10 +1,6 @@
-# Substrate &middot; [![GitHub license](https://img.shields.io/github/license/paritytech/substrate)](LICENSE) [![GitLab Status](https://gitlab.parity.io/parity/substrate/badges/master/pipeline.svg)](https://gitlab.parity.io/parity/substrate/pipelines) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](docs/CONTRIBUTING.adoc)
+# “Pnyx” Blockchain
+A shard-enabled blockchain achieving 64K TPS (using 3Mbps) on public network having 30Mbps upstream, or 1M TPS on public network having 50M upstream.
 
-Substrate is a next-generation framework for blockchain innovation.
-
-## Trying it out
-
-Simply go to [substrate.dev](https://substrate.dev) and follow the [getting started](https://substrate.dev/docs/en/overview/getting-started/) instructions.
 
 ## Contributions & Code of Conduct
 
@@ -16,4 +12,4 @@ The security policy and procedures can be found in [`docs/SECURITY.md`](docs/SEC
 
 ## License
 
-Substrate is [GPL 3.0 licensed](LICENSE).
+Pnyxchain's source code is [GPL 3.0 licensed](LICENSE), and the algorithms are patented, please contact [here](mailto://license@pnyxchain.fund) for license. 
