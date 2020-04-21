@@ -12,11 +12,15 @@ const RouteExpireTime:u64  =  600;
 const MaxItemEachNext:usize = 3;
 const InvalidIndex:u32 = 65536;
 const InvalidTTL:u8   =255;
+
+/**
+ * 这是一个简化版的路由表，仅用于可信节点的测试网络！！！
+ */
 //因为SystemTime/PeerId不支持Encode/Decode，所以只能用这个方法了
 #[derive(Debug, Eq, PartialEq,Clone,Encode,Decode)]
 pub struct RoutePathItem{
     pub next:Vec<u8>,
-    pub pathes:Option<Vec<RoutePathItem>>,
+    pub pathes:Option<Vec<RoutePathItem>>, //在简单版中，PATHES总是None
     pub min_ttl:u8,
     pub sign:Option<Vec<u8>>,
 }
@@ -26,25 +30,7 @@ impl RoutePathItem {
          self.min_ttl
     }
     pub fn update_min_ttl(& mut self) {
-        let mut min_ttl:u8 = InvalidTTL;
-        match &mut self.pathes{
-           Some(pathes) =>{
-            pathes.iter_mut().for_each(|sub_item|{
-                sub_item.update_min_ttl()
-            });
-            pathes.iter().for_each( |sub_item|{
-                if min_ttl > sub_item.min_ttl {
-                    min_ttl = sub_item.min_ttl;
-                }  
-            });
-           },
-           None =>{
-            min_ttl = 1
-           }
-        }
-
-        self.min_ttl = min_ttl;
-
+        //ttl should based on last one can't be calculated
     }
 
     /** 
@@ -56,37 +42,7 @@ impl RoutePathItem {
         if self.next != pathItem.next {
             false
         }else{
-            let mut  contained = false;
-            match &pathItem.pathes {
-                Some(incoming_pathes) =>{
-                    //如果新来的每一个分支，在自身的里面都能够找到，那么我们就认为这个是包含的
-                    let  results:Vec<bool> =  incoming_pathes.iter().map(|one_path|{
-                        let mut contained = false;
-                        match &self.pathes {
-                            Some(my_path) =>{
-                                for (_i,a_path) in my_path.iter().enumerate(){
-                                    if a_path.contains(one_path) {
-                                        contained = true;
-                                        break;
-                                    }
-                                }
-                            },
-                            None =>{},
-                        }
-                        contained
-                    }).collect();
-                    for (i,found) in results.iter().enumerate(){
-                        if !found { return false; }
-                    }
-                    return true;
-                },
-                None =>{
-                    match &self.pathes {
-                        None =>{ return true;},
-                        _ =>{return false;}
-                    }
-                }
-            }    
+            true
         }
     }
     fn print(&self) ->String{
@@ -133,81 +89,32 @@ pub struct RouteItemsWithTime {
     item:RouteItem,
 }
 impl RouteItemsWithTime{
-    ///! ### 合并同一时间点的一组路由信息
-    ///! 合并规则
-    ///! 1. 检查new_items的每一个分支， 忽略被包含的分支
-    ///! 2. 然后看剩余的每一个分支，与现有的分支之和是否小于3，如果小于3，直接合并
-    ///! 3. 如果大于3，从新的中找一个ttl最小的，然后在新的+老的中找出另外两个ttl最小的
+    fn contains(&self,next:& Vec<u8>){
+        let contained = false;
+        for item in self.pathes.iter().enumerate(){
+            if item.next == next {
+                contained = true;
+                break;
+            }
+        }
+        contained
+    }
+    /// merge from next_items
     pub fn merge(&mut self,new_items:& RoutePathItem){
         let mut contained=Vec::new();
         match & new_items.pathes {
             Some(pathes) =>{
-                for (i,val) in pathes.iter().enumerate(){
-                    let mut item_contained = false;
-                    self.item.pathes.iter().for_each(|path|{
-                        if !item_contained {
-                            item_contained = path.contains(val);
-                        }
-                    });
-             
-                    if item_contained {
-                        contained.push(i);
-                    }
-                }
-                //不是完全包含的，需要合并
-                if contained.len() < pathes.len() {
-                    if pathes.len() - contained.len() + self.item.pathes.len() <= MaxItemEachNext {
-                        //合并后不超过MaxItemEachNext的
-                        for i in 0..pathes.len() {
-                            if !contained.contains(&i) {
-                                self.item.pathes.push(pathes[i].clone());
-                            }
-                        }
-                    }else{
-                        //需要删除一些ttl最长的，为了避免数据的多次克隆，我们尽量保留self.item.pathes的位置
-                        let mut in_ttls:Vec<(u8,usize)> = Vec::new();
-                        for(index,path) in pathes.iter().enumerate(){
-                            in_ttls.push((path.getMinTTL(),index));
-                        };
-                        in_ttls.sort();
-                        //in_ttls是按照ttl从小到大排列了
-                        let mut no_new_item = false;
-                        let mut self_ttl_info:Vec<(u8,usize)> = Vec::new();
-                        for (index,path) in self.item.pathes.iter().enumerate(){
-                            self_ttl_info.push((path.getMinTTL(),index));
-                        }
-                        self_ttl_info.sort();
-                        let mut cnt_of_self_pathes = self_ttl_info.len();
-                        let mut cur_to_replace = cnt_of_self_pathes;
-                        for (_,(ttl,index)) in in_ttls.iter().enumerate(){
-                            if !contained.contains(&index) {
-                                if cnt_of_self_pathes < MaxItemEachNext {
-                                    //不满，直接放在后面
-                                    self.item.pathes.push(pathes[*index].clone());
-                                    cnt_of_self_pathes += 1;
-                                    no_new_item = false;
-                                }else{
-                                    //总共已经超过了，在里面替换一个最旧的
-                                    if cur_to_replace>0 {
-                                        //强制替换或者小的TTL才替换
-                                        if no_new_item || (self.item.pathes[cur_to_replace].getMinTTL() <= pathes[*index].getMinTTL()){
-                                            no_new_item = false;
-                                            self.item.pathes[cur_to_replace] = pathes[*index].clone();
-                                            cur_to_replace -= 1;
-                                
-                                            if cur_to_replace == 0 {
-                                                break;
-                                            }
-                                        }
-                                       
-                                    } 
-                                }
-                            }
-                        }   
-                    }
-                }
+               if !self.contains(new_items.next) {
+                   pathes.push(new_items);
+                   if new_items.min_ttl < self.item.min_ttl {
+                       self.item.min_ttl = new_items.min_ttl;
+                   }
+               }
             },
-            None=>{},
+            None=>{
+                self.item.pathes = vec![new_items];
+                self.item.min_ttl = new_items.min_ttl;
+            },
         }
 
     }
